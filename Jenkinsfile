@@ -31,7 +31,7 @@ pipeline {
 
         stage('Trivy Scan') {
             steps {
-                sh 'trivy fs --scanners vuln --skip-pkg-types pom --exit-code 0 .'
+                sh 'trivy fs --scanners vuln --exit-code 0 .'
             }
         }
 

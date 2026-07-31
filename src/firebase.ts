@@ -108,9 +108,9 @@ export async function testConnection() {
     // Tests connection to server without caching
     await getDocFromServer(doc(db, '_connection_test', 'ping'));
     console.log('Firebase connectivity verified successfully.');
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error('Please check your Firebase configuration or internet connection. Client is offline.');
+  } catch (error: any) {
+    if (error?.code === 'unavailable' || error?.message?.includes('offline') || error?.message?.includes('could not be completed')) {
+      console.warn('Firebase connection currently in offline/reconnecting mode.');
     } else {
       // It is normal to receive permission-denied for a non-existent collection under default-deny,
       // but it still proves we can talk to the server successfully!
