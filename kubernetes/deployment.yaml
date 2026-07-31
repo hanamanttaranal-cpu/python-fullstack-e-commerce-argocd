@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auramarket-web-deployment
+  labels:
+    app: auramarket-web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: auramarket-web
+  template:
+    metadata:
+      labels:
+        app: auramarket-web
+    spec:
+      containers:
+      - name: auramarket-web
+        image: auramarket-ecommerce:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
