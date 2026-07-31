@@ -17,7 +17,15 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                sh 'npm install'
+                script {
+                    if (fileExists('backend/requirements.txt')) {
+                        dir('backend') {
+                            sh 'python3 -m venv venv || true'
+                            sh '. venv/bin/activate && pip install -r requirements.txt || true'
+                        }
+                    }
+                    sh 'npm install'
+                }
             }
         }
 

@@ -1,6 +1,15 @@
 version: '3.8'
 
 services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: auramarket-backend
+    ports:
+      - "8000:8000"
+    restart: always
+
   web:
     build:
       context: .
@@ -10,4 +19,6 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
+    depends_on:
+      - backend
     restart: always
