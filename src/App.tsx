@@ -130,9 +130,13 @@ export function AppContent() {
     return result;
   }, [allRatings]);
 
-  // Merge computed ratings with products catalog
+  // Merge computed ratings with products catalog (falling back to SEED_PRODUCTS if database is empty or initial sync in progress)
+  const catalogProducts = React.useMemo(() => {
+    return products.length > 0 ? products : SEED_PRODUCTS;
+  }, [products]);
+
   const productsWithRatings = React.useMemo(() => {
-    return products.map((product) => {
+    return catalogProducts.map((product) => {
       const summary = ratingsSummary[product.id];
       if (summary) {
         return {
@@ -143,7 +147,7 @@ export function AppContent() {
       }
       return product;
     });
-  }, [products, ratingsSummary]);
+  }, [catalogProducts, ratingsSummary]);
 
   // Resolve recently viewed products using memo
   const recentlyViewedProducts = React.useMemo(() => {
@@ -425,6 +429,12 @@ export function AppContent() {
     }
   };
 
+  // Compute available categories derived from current catalog products
+  const displayCategories = React.useMemo(() => {
+    if (categories.length > 0) return categories;
+    return Array.from(new Set(catalogProducts.map((p) => p.category)));
+  }, [categories, catalogProducts]);
+
   // Filtering & Sorting Logic
   const filteredProducts = productsWithRatings
     .filter((product) => {
@@ -462,7 +472,7 @@ export function AppContent() {
         setIsCartOpen={setIsCartOpen}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
-        categories={categories}
+        categories={displayCategories}
         isDarkMode={isDarkMode}
         toggleDarkMode={toggleDarkMode}
       />
