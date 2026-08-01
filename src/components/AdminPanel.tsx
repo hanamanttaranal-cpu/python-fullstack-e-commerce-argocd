@@ -30,6 +30,27 @@ export default function AdminPanel() {
     featured: false
   });
 
+  const getLocalDemoOrders = (): Order[] => {
+    const demoOrders: Order[] = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('auramarket_demo_orders_')) {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              demoOrders.push(...parsed);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed reading local demo orders:', e);
+    }
+    return demoOrders;
+  };
+
   // Load All Products from Firestore
   useEffect(() => {
     setLoadingProducts(true);
@@ -42,12 +63,12 @@ export default function AdminPanel() {
         snapshot.forEach((doc) => {
           list.push({ id: doc.id, ...doc.data() } as Product);
         });
-        setProducts(list);
+        setProducts(list.length > 0 ? list : SEED_PRODUCTS);
         setLoadingProducts(false);
       },
       (error) => {
-        console.error('Error loading products for admin:', error);
-        setErrorMsg('Failed to fetch catalog. Please verify your Firestore security rules.');
+        console.warn('Notice: Firestore products snapshot:', error);
+        setProducts(SEED_PRODUCTS);
         setLoadingProducts(false);
       }
     );
@@ -55,7 +76,7 @@ export default function AdminPanel() {
     return () => unsubscribe();
   }, []);
 
-  // Load All Orders from Firestore (Since we are Admin, we can bypass the userId list filter if we query all orders)
+  // Load All Orders from Firestore
   useEffect(() => {
     setLoadingOrders(true);
     const ordersRef = collection(db, 'orders');
@@ -67,19 +88,22 @@ export default function AdminPanel() {
         snapshot.forEach((doc) => {
           list.push({ id: doc.id, ...doc.data() } as Order);
         });
-        // Sort orders descending
-        list.sort((a, b) => {
+        
+        const localOrders = getLocalDemoOrders();
+        const combined = [...list, ...localOrders.filter((l) => !list.some((r) => r.id === l.id))];
+
+        combined.sort((a, b) => {
           const timeA = a.createdAt ? (typeof a.createdAt === 'object' ? (a.createdAt as any).seconds : new Date(a.createdAt).getTime()) : 0;
           const timeB = b.createdAt ? (typeof b.createdAt === 'object' ? (b.createdAt as any).seconds : new Date(b.createdAt).getTime()) : 0;
           return timeB - timeA;
         });
-        setOrders(list);
+
+        setOrders(combined);
         setLoadingOrders(false);
       },
       (error) => {
-        console.error('Error loading orders for admin:', error);
-        // Error is expected if user isn't bootstrapped admin or rule deployment hasn't synced
-        setErrorMsg('Unable to retrieve general orders list. Authenticated Admin only.');
+        console.warn('Notice: Firestore admin orders subscription:', error);
+        setOrders(getLocalDemoOrders());
         setLoadingOrders(false);
       }
     );

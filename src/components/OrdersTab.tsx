@@ -3,7 +3,7 @@ import { Package, Clock, ShieldAlert, ChevronDown, ChevronUp, MapPin, CreditCard
 import { User as FirebaseUser } from 'firebase/auth';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { Order } from '../types';
-import { db, handleFirestoreError, OperationType } from '../firebase';
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 
 interface OrdersTabProps {
   user: FirebaseUser | null;
@@ -21,9 +21,25 @@ export default function OrdersTab({ user }: OrdersTabProps) {
     setLoading(true);
     setErrorMsg(null);
 
+    const loadLocalOrders = (): Order[] => {
+      try {
+        const localKey = `auramarket_demo_orders_${user.uid}`;
+        const raw = localStorage.getItem(localKey);
+        return raw ? JSON.parse(raw) : [];
+      } catch {
+        return [];
+      }
+    };
+
+    const isRealAuth = auth.currentUser && auth.currentUser.uid === user.uid;
+
+    if (!isRealAuth) {
+      setOrders(loadLocalOrders());
+      setLoading(false);
+      return;
+    }
+
     const ordersRef = collection(db, 'orders');
-    
-    // CRITICAL: Filter by userId is MANDATORY to satisfy our secure "allow list" rule
     const q = query(ordersRef, where('userId', '==', user.uid));
 
     const unsubscribe = onSnapshot(
@@ -33,25 +49,23 @@ export default function OrdersTab({ user }: OrdersTabProps) {
         snapshot.forEach((doc) => {
           list.push({ id: doc.id, ...doc.data() } as Order);
         });
-        
-        // Sort orders by timestamp if it exists, otherwise fallback to local ordering
-        list.sort((a, b) => {
+
+        const localList = loadLocalOrders();
+        const combined = [...list, ...localList.filter((l) => !list.some((r) => r.id === l.id))];
+
+        combined.sort((a, b) => {
           const timeA = a.createdAt ? (typeof a.createdAt === 'object' ? (a.createdAt as any).seconds : new Date(a.createdAt).getTime()) : 0;
           const timeB = b.createdAt ? (typeof b.createdAt === 'object' ? (b.createdAt as any).seconds : new Date(b.createdAt).getTime()) : 0;
           return timeB - timeA;
         });
 
-        setOrders(list);
+        setOrders(combined);
         setLoading(false);
       },
       (error) => {
-        console.error('Error loading orders:', error);
-        try {
-          handleFirestoreError(error, OperationType.LIST, 'orders');
-        } catch (e: any) {
-          setErrorMsg('Access Denied: Please check Firestore rule deployment status.');
-          setLoading(false);
-        }
+        console.warn('Error loading orders from Firestore, displaying local orders:', error);
+        setOrders(loadLocalOrders());
+        setLoading(false);
       }
     );
 

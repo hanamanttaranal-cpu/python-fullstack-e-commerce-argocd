@@ -1,7 +1,7 @@
 import React from 'react';
 import { ShoppingCart, LogIn, LogOut, Package, User, Search, Settings, Sun, Moon } from 'lucide-react';
 import { User as FirebaseUser } from 'firebase/auth';
-import { signInWithGoogle, logOut } from '../firebase';
+import { logOut } from '../firebase';
 import { useToast } from './Toast';
 
 interface NavbarProps {
@@ -18,6 +18,7 @@ interface NavbarProps {
   categories: string[];
   isDarkMode: boolean;
   toggleDarkMode: () => void;
+  onOpenAuthModal: () => void;
 }
 
 export default function Navbar({
@@ -33,21 +34,11 @@ export default function Navbar({
   setActiveTab,
   categories,
   isDarkMode,
-  toggleDarkMode
+  toggleDarkMode,
+  onOpenAuthModal
 }: NavbarProps) {
   const { showToast } = useToast();
   const isAdmin = user?.email === 'hanamanttaranal19@gmail.com';
-
-  const handleSignIn = async () => {
-    try {
-      const loggedUser = await signInWithGoogle();
-      if (loggedUser) {
-        showToast(`Welcome back, ${loggedUser.displayName || 'User'}!`, 'success');
-      }
-    } catch (e) {
-      showToast('Authentication failed. Please try again.', 'error');
-    }
-  };
 
   const handleSignOut = async () => {
     try {
@@ -192,7 +183,7 @@ export default function Navbar({
               </div>
             ) : (
               <button
-                onClick={handleSignIn}
+                onClick={onOpenAuthModal}
                 className="flex items-center gap-2 rounded-xl bg-gray-900 dark:bg-white px-4 py-2 text-xs font-semibold text-white dark:text-gray-900 shadow-xs hover:bg-gray-800 dark:hover:bg-gray-100 focus:outline-hidden focus:ring-2 focus:ring-gray-900 dark:focus:ring-white focus:ring-offset-2 transition-all cursor-pointer"
                 id="sign-in-btn"
               >

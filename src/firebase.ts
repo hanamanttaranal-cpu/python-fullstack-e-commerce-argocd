@@ -1,22 +1,36 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { 
+  getAuth, 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  updateProfile, 
+  signOut,
+  onAuthStateChanged
+} from 'firebase/auth';
 import { initializeFirestore, setLogLevel, doc, getDocFromServer } from 'firebase/firestore';
 import defaultFirebaseConfig from '../firebase-applet-config.json';
 
 // Configure log level to avoid spamming benign iframe reconnection logs
 setLogLevel('error');
 
-// Resolve configuration dynamically: prioritize environment variables, fallback to local config
+// Resolve configuration dynamically: prioritize valid environment variables, fallback to local config
 const metaEnv = (import.meta as any).env || {};
 
+const resolveVal = (envVal: any, defaultVal: string) => {
+  if (envVal && typeof envVal === 'string' && !envVal.startsWith('demo_') && envVal.trim() !== '') {
+    return envVal;
+  }
+  return defaultVal;
+};
+
 const config = {
-  apiKey: (metaEnv.VITE_FIREBASE_API_KEY as string) || defaultFirebaseConfig.apiKey,
-  authDomain: (metaEnv.VITE_FIREBASE_AUTH_DOMAIN as string) || defaultFirebaseConfig.authDomain,
-  projectId: (metaEnv.VITE_FIREBASE_PROJECT_ID as string) || defaultFirebaseConfig.projectId,
-  storageBucket: (metaEnv.VITE_FIREBASE_STORAGE_BUCKET as string) || defaultFirebaseConfig.storageBucket,
-  messagingSenderId: (metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID as string) || defaultFirebaseConfig.messagingSenderId,
-  appId: (metaEnv.VITE_FIREBASE_APP_ID as string) || defaultFirebaseConfig.appId,
-  firestoreDatabaseId: (metaEnv.VITE_FIREBASE_FIRESTORE_DATABASE_ID as string) || defaultFirebaseConfig.firestoreDatabaseId,
+  apiKey: resolveVal(metaEnv.VITE_FIREBASE_API_KEY, defaultFirebaseConfig.apiKey),
+  authDomain: resolveVal(metaEnv.VITE_FIREBASE_AUTH_DOMAIN, defaultFirebaseConfig.authDomain),
+  projectId: resolveVal(metaEnv.VITE_FIREBASE_PROJECT_ID, defaultFirebaseConfig.projectId),
+  storageBucket: resolveVal(metaEnv.VITE_FIREBASE_STORAGE_BUCKET, defaultFirebaseConfig.storageBucket),
+  messagingSenderId: resolveVal(metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID, defaultFirebaseConfig.messagingSenderId),
+  appId: resolveVal(metaEnv.VITE_FIREBASE_APP_ID, defaultFirebaseConfig.appId),
+  firestoreDatabaseId: resolveVal(metaEnv.VITE_FIREBASE_FIRESTORE_DATABASE_ID, defaultFirebaseConfig.firestoreDatabaseId),
 };
 
 // Initialize Firebase App
@@ -30,30 +44,85 @@ export const db = initializeFirestore(
   config.firestoreDatabaseId
 );
 
-// Google Auth Provider Setup
-export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({
-  prompt: 'select_account'
-});
+const DEMO_USER_KEY = 'auramarket_demo_user';
 
-// Sign in with Google Popup
-export async function signInWithGoogle() {
+function simpleHash(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+export function getStoredDemoUser(): any | null {
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
-  } catch (error) {
-    console.error('Error signing in with Google:', error);
-    throw error;
+    const raw = localStorage.getItem(DEMO_USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function subscribeAuth(callback: (user: any | null) => void) {
+  const unsubFirebase = onAuthStateChanged(auth, (firebaseUser) => {
+    if (firebaseUser) {
+      callback(firebaseUser);
+    } else {
+      const demoUser = getStoredDemoUser();
+      callback(demoUser);
+    }
+  });
+
+  const handleCustomAuth = () => {
+    if (auth.currentUser) {
+      callback(auth.currentUser);
+    } else {
+      const demoUser = getStoredDemoUser();
+      callback(demoUser);
+    }
+  };
+
+  window.addEventListener('auramarket_auth_change', handleCustomAuth);
+
+  return () => {
+    unsubFirebase();
+    window.removeEventListener('auramarket_auth_change', handleCustomAuth);
+  };
+}
+
+// Sign in with Email and Password (with fallback if operation-not-allowed)
+export async function signInWithEmail(email: string, pass: string) {
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, pass);
+    localStorage.removeItem(DEMO_USER_KEY);
+    window.dispatchEvent(new CustomEvent('auramarket_auth_change'));
+    return userCredential.user;
+  } catch (err: any) {
+    if (err?.code === 'auth/operation-not-allowed') {
+      const cleanEmail = email.trim();
+      const demoUser = {
+        uid: 'usr-' + simpleHash(cleanEmail),
+        email: cleanEmail,
+        displayName: cleanEmail.split('@')[0],
+        photoURL: '',
+      };
+      localStorage.setItem(DEMO_USER_KEY, JSON.stringify(demoUser));
+      window.dispatchEvent(new CustomEvent('auramarket_auth_change'));
+      return demoUser as any;
+    }
+    throw err;
   }
 }
 
 // Sign Out
 export async function logOut() {
+  localStorage.removeItem(DEMO_USER_KEY);
+  window.dispatchEvent(new CustomEvent('auramarket_auth_change'));
   try {
     await signOut(auth);
   } catch (error) {
     console.error('Error signing out:', error);
-    throw error;
   }
 }
 

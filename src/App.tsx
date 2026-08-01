@@ -3,7 +3,7 @@ import { User as FirebaseUser, onAuthStateChanged } from 'firebase/auth';
 import { collection, doc, getDocs, getDoc, setDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { ShoppingBag, Star, RefreshCw, LogIn, Sparkles, ShieldCheck } from 'lucide-react';
 import { Product, CartItem, UserProfile, Rating } from './types';
-import { auth, db, signInWithGoogle, handleFirestoreError, OperationType } from './firebase';
+import { auth, db, subscribeAuth, handleFirestoreError, OperationType } from './firebase';
 import { SEED_PRODUCTS } from './data/seedProducts';
 
 // Components
@@ -17,6 +17,7 @@ import AdminPanel from './components/AdminPanel';
 import { ToastProvider, useToast } from './components/Toast';
 import ProductCompare from './components/ProductCompare';
 import NewsletterSignup from './components/NewsletterSignup';
+import AuthModal from './components/AuthModal';
 
 export function AppContent() {
   const { showToast } = useToast();
@@ -52,6 +53,7 @@ export function AppContent() {
 
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   
   // Products Catalog State
   const [products, setProducts] = useState<Product[]>([]);
@@ -201,12 +203,12 @@ export function AppContent() {
 
   // 1. Firebase Auth listener & Profile Sync
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribe = subscribeAuth(async (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
 
-      if (currentUser) {
-        // User signed in: make sure they exist in 'users' collection in Firestore
+      if (currentUser && auth.currentUser && auth.currentUser.uid === currentUser.uid) {
+        // User signed in via real Firebase Auth: make sure they exist in 'users' collection in Firestore
         const userDocRef = doc(db, 'users', currentUser.uid);
         try {
           const userSnap = await getDoc(userDocRef);
@@ -219,12 +221,7 @@ export function AppContent() {
             });
           }
         } catch (error) {
-          console.error('Error syncing user profile with Firestore:', error);
-          try {
-            handleFirestoreError(error, OperationType.WRITE, `users/${currentUser.uid}`);
-          } catch (e) {
-            // Keep app running but log detailed error
-          }
+          console.warn('Firestore user profile sync notice:', error);
         }
       }
     });
@@ -323,7 +320,7 @@ export function AppContent() {
 
   // Synchronize cart with Firestore for signed-in users
   useEffect(() => {
-    if (!user) return;
+    if (!user || !auth.currentUser || auth.currentUser.uid !== user.uid) return;
 
     const cartDocRef = doc(db, 'carts', user.uid);
     const unsubscribe = onSnapshot(
@@ -361,7 +358,7 @@ export function AppContent() {
 
   // Push cart updates to Firestore
   const syncCartToRemote = async (items: CartItem[]) => {
-    if (!user) return;
+    if (!user || !auth.currentUser || auth.currentUser.uid !== user.uid) return;
     const cartDocRef = doc(db, 'carts', user.uid);
     try {
       const itemsPayload = items.map((item) => ({
@@ -475,6 +472,7 @@ export function AppContent() {
         categories={displayCategories}
         isDarkMode={isDarkMode}
         toggleDarkMode={toggleDarkMode}
+        onOpenAuthModal={() => setIsAuthModalOpen(true)}
       />
 
       {/* Main Container Stage */}
@@ -704,6 +702,11 @@ export function AppContent() {
         onRemoveFromCompare={handleRemoveFromCompare}
         onClearCompare={handleClearCompare}
         onAddToCart={handleAddToCart}
+      />
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
       />
 
     </div>
