@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: python
+spec:
+  replicas: 1
+
+  selector:
+    matchLabels:
+      app: backend
+
+  template:
+    metadata:
+      labels:
+        app: backend
+
+    spec:
+      containers:
+      - name: backend
+
+        image: sureshb2/python-backend-argocd
+
+        imagePullPolicy: Always
+
+        ports:
+        - containerPort: 8000
+
+        env:
+        - name: MYSQL_HOST
+          value: mysql
+
+        - name: MYSQL_PORT
+          value: "3306"
+
+        - name: MYSQL_DATABASE
+          value: auramarket
+
+        - name: MYSQL_USER
+          value: user
+
+        - name: MYSQL_PASSWORD
+          value: password
+
+        - name: SPRING_DATASOURCE_URL
+          value: jdbc:mysql://mysql:3306/auramarket?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+
+        - name: SPRING_DATASOURCE_USERNAME
+          value: user
+
+        - name: SPRING_DATASOURCE_PASSWORD
+          value: password
