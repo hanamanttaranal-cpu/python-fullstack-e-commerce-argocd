@@ -8,7 +8,7 @@ spec:
   sourceRepos:                 # Which Git repos are allowed for this Project
     - https://github.com/hanamanttaranal-cpu/python-fullstack-e-commerce-argocd.git
   destinations:                # Which clusters/namespaces apps in this Project can target
-    - namespace: argocd
+    - namespace: python
       server: https://kubernetes.default.svc 
   clusterResourceWhitelist:    # Which cluster-wide resources are allowed (e.g., CRDs)
     - group: "*"               # '*' means allow all groups
